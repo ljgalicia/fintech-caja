@@ -458,7 +458,7 @@ def saldo_total(username):
         if resultado and resultado[0]['TOTAL_RETIRO'] is not None and resultado[0]['TOTAL_DEPOSITO'] is not None:
             total_retiro = float(resultado[0]['TOTAL_RETIRO'])
             total_deposito = float(resultado[0]['TOTAL_DEPOSITO'])
-            saldo_total = total_deposito - total_retiro
+            saldo_total = total_deposito + total_retiro
             
             table = PrettyTable()
             table.field_names = ["Total Retiros", "Total Depósitos", "Saldo Total"]
