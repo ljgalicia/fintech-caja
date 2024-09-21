@@ -1,5 +1,5 @@
 # Versión del programa
-# Version 3.17 - Modificado por Claude 3.5
+# Version 3.19 - Modificado por Claude 3.5
 # 2023-05-25 17:45:00 - Actualizada función listado_movimiento_por_cliente() para mostrar datos en formato de tabla
 # 2023-05-25 18:30:00 - Actualizadas funciones registro_movimientos() y listado_movimiento_por_cliente()
 # 2023-05-25 19:15:00 - Actualizadas funciones mostrar_lista_usuarios(), mostrar_lista_terceros() y agregada función saldo_total()
@@ -568,7 +568,7 @@ def registro_movimientos(username):
 
 def listado_movimiento_por_cliente(username):
     """
-    Muestra un listado de movimientos por cliente en formato de tabla.
+    Muestra un listado de movimientos por cliente en formato de tabla con las modificaciones solicitadas.
     """
     connection = None
     try:
@@ -576,11 +576,26 @@ def listado_movimiento_por_cliente(username):
         id_tercero = input("Ingrese el ID del tercero: ")
         tip_tercero = input("Ingrese el tipo del tercero: ")
         
+        # Obtener nombre y apellidos del tercero
+        query_tercero = """
+        SELECT NOM_TERCERO, APE_PATERNO, APE_MATERNO
+        FROM CAT_TERCEROS
+        WHERE ID_TERCERO = %s AND TIP_TERCERO = %s
+        """
+        data_tercero = (id_tercero, tip_tercero)
+        resultado_tercero = fetch_query(connection, query_tercero, data_tercero)
+        
+        if not resultado_tercero:
+            print("No se encontró el tercero especificado.")
+            return
+        
+        nombre_completo = f"{resultado_tercero[0]['NOM_TERCERO']} {resultado_tercero[0]['APE_PATERNO']} {resultado_tercero[0]['APE_MATERNO']}"
+        print(f"\nMovimientos para: {nombre_completo}")
+        
         query = """
-        SELECT HM.ID_TERCERO, TT.DESC_TIP_TERCERO, HM.FEC_REGISTRO, TM.DESC_MOVIMIENTO, 
+        SELECT HM.FEC_REGISTRO, TM.DESC_MOVIMIENTO, 
                HM.IMP_RETIRO, HM.IMP_DEPOSITO, HM.FEC_ACTUALIZACION
         FROM HIS_MOVIMIENTOS HM
-        JOIN CAT_TIP_TERCEROS TT ON HM.TIP_TERCERO = TT.TIP_TERCERO
         JOIN CAT_TIP_MOVIMIENTOS TM ON HM.COD_MOVIMIENTO = TM.COD_MOVIMIENTO
         WHERE HM.ID_TERCERO = %s AND HM.TIP_TERCERO = %s
         ORDER BY HM.FEC_REGISTRO
@@ -590,32 +605,41 @@ def listado_movimiento_por_cliente(username):
         
         if movimientos:
             table = PrettyTable()
-            table.field_names = ["ID Tercero", "Tipo Tercero", "Fecha Registro", "Tipo Movimiento", 
-                                 "Importe Retiro", "Importe Depósito", "Fecha Actualización"]
+            table.field_names = ["Fecha Registro", "Tipo Movimiento", "Importe Retiro", "Importe Depósito", "Saldo", "Fecha Actualización"]
             
             suma_depositos = 0
+            suma_retiros = 0
+            saldo_acumulado = 0
+            
             for movimiento in movimientos:
+                imp_retiro = float(movimiento['IMP_RETIRO'] or 0)
+                imp_deposito = float(movimiento['IMP_DEPOSITO'] or 0)
+                saldo_acumulado += imp_deposito + imp_retiro  # Suma porque el retiro ya viene con signo negativo
+                
                 table.add_row([
-                    movimiento['ID_TERCERO'],
-                    movimiento['DESC_TIP_TERCERO'],
                     movimiento['FEC_REGISTRO'].strftime('%Y-%m-%d') if isinstance(movimiento['FEC_REGISTRO'], datetime) else movimiento['FEC_REGISTRO'],
                     movimiento['DESC_MOVIMIENTO'],
-                    movimiento['IMP_RETIRO'],
-                    movimiento['IMP_DEPOSITO'],
+                    f"${imp_retiro:,.2f}" if imp_retiro != 0 else "",
+                    f"${imp_deposito:,.2f}" if imp_deposito != 0 else "",
+                    f"${saldo_acumulado:,.2f}",
                     movimiento['FEC_ACTUALIZACION'].strftime('%Y-%m-%d %H:%M:%S') if isinstance(movimiento['FEC_ACTUALIZACION'], datetime) else movimiento['FEC_ACTUALIZACION']
                 ])
-                if movimiento['IMP_DEPOSITO']:
-                    suma_depositos += float(movimiento['IMP_DEPOSITO'])
+                
+                suma_depositos += imp_deposito
+                suma_retiros += imp_retiro
             
             print("\nListado de movimientos por cliente:")
             print(table)
-            print(f"\nSuma total de depósitos: {suma_depositos:.2f}")
+            print(f"\nSuma total de depósitos: ${suma_depositos:,.2f}")
+            print(f"Suma total de retiros: ${suma_retiros:,.2f}")
+            print(f"Saldo final: ${saldo_acumulado:,.2f}")
         else:
             print("No se encontraron movimientos para este cliente.")
     except (ConnectionError, DatabaseError) as e:
         print(f"Error al listar movimientos por cliente: {e}")
     finally:
         close_database(connection)
+
 
 def generar_respaldo_datos(username):
     """
