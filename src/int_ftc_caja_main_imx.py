@@ -1,5 +1,5 @@
 # Versión del programa
-# Version 3.19 - Modificado por Claude 3.5
+# Version 3.20 - Modificado por Claude 3.5
 # 2023-05-25 17:45:00 - Actualizada función listado_movimiento_por_cliente() para mostrar datos en formato de tabla
 # 2023-05-25 18:30:00 - Actualizadas funciones registro_movimientos() y listado_movimiento_por_cliente()
 # 2023-05-25 19:15:00 - Actualizadas funciones mostrar_lista_usuarios(), mostrar_lista_terceros() y agregada función saldo_total()
@@ -731,14 +731,27 @@ def modificar_movimiento(username):
         id_tercero = input("Ingrese el ID del tercero: ")
         tip_tercero = input("Ingrese el tipo de tercero: ")
         fec_registro_original = input("Ingrese la fecha de registro original (YYYY-MM-DD HH:MM:SS): ")
+        
+        # Mostrar lista de tipos de movimientos
+        print("\nTipos de movimientos disponibles:")
+        query_tipos = "SELECT COD_MOVIMIENTO, DESC_MOVIMIENTO, TIP_MOVIMIENTO FROM CAT_TIP_MOVIMIENTOS"
+        tipos_movimientos = fetch_query(connection, query_tipos)
+        
+        table_tipos = PrettyTable()
+        table_tipos.field_names = ["Código", "Descripción", "Tipo"]
+        for tipo in tipos_movimientos:
+            table_tipos.add_row([tipo['COD_MOVIMIENTO'], tipo['DESC_MOVIMIENTO'], tipo['TIP_MOVIMIENTO']])
+        print(table_tipos)
+        
+        cod_movimiento_original = input("Ingrese el código de movimiento original: ")
         fec_actualizacion = input("Ingrese la fecha de actualización original (YYYY-MM-DD HH:MM:SS): ")
         
         # Buscar el registro
         query = """
         SELECT * FROM HIS_MOVIMIENTOS
-        WHERE ID_TERCERO = %s AND TIP_TERCERO = %s AND FEC_REGISTRO = %s AND FEC_ACTUALIZACION = %s
+        WHERE ID_TERCERO = %s AND TIP_TERCERO = %s AND FEC_REGISTRO = %s AND COD_MOVIMIENTO = %s AND FEC_ACTUALIZACION = %s
         """
-        data = (id_tercero, tip_tercero, fec_registro_original, fec_actualizacion)
+        data = (id_tercero, tip_tercero, fec_registro_original, cod_movimiento_original, fec_actualizacion)
         resultado = fetch_query(connection, query, data)
         
         if not resultado:
@@ -753,7 +766,12 @@ def modificar_movimiento(username):
         
         # Solicitar nuevos valores para los campos modificables
         print("\nDeje en blanco los campos que no desea modificar.")
+        
+        # Mostrar nuevamente la lista de tipos de movimientos para la modificación
+        print("\nTipos de movimientos disponibles:")
+        print(table_tipos)
         nuevo_cod_movimiento = input(f"Nuevo código de movimiento [{registro['COD_MOVIMIENTO']}]: ") or registro['COD_MOVIMIENTO']
+        
         nuevo_imp_retiro = input(f"Nuevo importe de retiro [{registro['IMP_RETIRO']}]: ") or registro['IMP_RETIRO']
         nuevo_imp_deposito = input(f"Nuevo importe de depósito [{registro['IMP_DEPOSITO']}]: ") or registro['IMP_DEPOSITO']
         nueva_mca_inhabilitado = input(f"Nueva marca de inhabilitado (S/N) [{registro['MCA_INHABILITADO']}]: ") or registro['MCA_INHABILITADO']
@@ -762,11 +780,11 @@ def modificar_movimiento(username):
         query = """
         UPDATE HIS_MOVIMIENTOS
         SET FEC_REGISTRO = %s, COD_MOVIMIENTO = %s, IMP_RETIRO = %s, IMP_DEPOSITO = %s, MCA_INHABILITADO = %s, FEC_ACTUALIZACION = %s, COD_USUARIO = %s
-        WHERE ID_TERCERO = %s AND TIP_TERCERO = %s AND FEC_REGISTRO = %s AND FEC_ACTUALIZACION = %s
+        WHERE ID_TERCERO = %s AND TIP_TERCERO = %s AND FEC_REGISTRO = %s AND COD_MOVIMIENTO = %s AND FEC_ACTUALIZACION = %s
         """
         nueva_fec_actualizacion = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         data = (nueva_fec_registro, nuevo_cod_movimiento, nuevo_imp_retiro, nuevo_imp_deposito, nueva_mca_inhabilitado, 
-                nueva_fec_actualizacion, username, id_tercero, tip_tercero, fec_registro_original, fec_actualizacion)
+                nueva_fec_actualizacion, username, id_tercero, tip_tercero, fec_registro_original, cod_movimiento_original, fec_actualizacion)
         
         execute_query(connection, query, data)
         print("Registro actualizado correctamente.")
@@ -775,6 +793,7 @@ def modificar_movimiento(username):
         print(f"Error al modificar el movimiento: {e}")
     finally:
         close_database(connection)
+
 
 class DatabaseError(Exception):
     """Excepción personalizada para errores de base de datos."""
